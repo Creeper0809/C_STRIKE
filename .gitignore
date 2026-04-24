@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+logs/
+ops_bot_legacy_venv/
+*.db
