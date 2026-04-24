@@ -1,3 +1,3 @@
 # Discrod Bot
 
-Python -m ops_bot
+실행 방법 : Python -m ops_bot
