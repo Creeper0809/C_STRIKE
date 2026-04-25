@@ -125,6 +125,26 @@ def _team_of_user_or_raise(user_id: str) -> dict:
     return team
 
 
+def _team_of_member_roles_or_raise(member: discord.abc.User, guild_id: str) -> dict:
+    if not isinstance(member, discord.Member):
+        raise TeamError("?꾩옱 ?뚯냽?????李얠쓣 ???놁뒿?덈떎.")
+
+    roles = list(getattr(member, "roles", []) or [])
+    roles.sort(key=lambda role: int(getattr(role, "position", 0) or 0), reverse=True)
+    competition_id = _competition_id()
+    for role in roles:
+        role_id = str(getattr(role, "id", "") or "").strip()
+        if not role_id:
+            continue
+        team = db_team.get_team_by_role(guild_id, role_id)
+        if not team:
+            continue
+        if competition_id and str(team.get("competition_id") or "").strip() != competition_id:
+            continue
+        return team
+    raise TeamError("?꾩옱 ?뚯냽?????李얠쓣 ???놁뒿?덈떎.")
+
+
 def _team_from_role_or_raise(guild_id: str, role: discord.Role) -> dict:
     team = db_team.get_team_by_role(guild_id, str(role.id))
     if not team:
@@ -395,7 +415,7 @@ class TeamCog(commands.GroupCog, group_name="팀", group_description="팀 조회
             if team is not None:
                 target = _team_from_role_or_raise(str(interaction.guild_id), team)
             else:
-                target = _team_of_user_or_raise(str(interaction.user.id))
+                target = _team_of_member_roles_or_raise(interaction.user, str(interaction.guild_id))
                 if target.get("discord_role_id") and interaction.guild is not None:
                     team = interaction.guild.get_role(int(str(target["discord_role_id"])))
             detail = db_team.get_team_detail(str(target.get("id")))

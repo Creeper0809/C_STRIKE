@@ -21,6 +21,7 @@ EXTENSIONS = [
     f"{EXTENSION_BASE}.register",
     f"{EXTENSION_BASE}.flag",
     f"{EXTENSION_BASE}.problem",
+    f"{EXTENSION_BASE}.ranking",
     f"{EXTENSION_BASE}.team",
     f"{EXTENSION_BASE}.notify",
     f"{EXTENSION_BASE}.message",
@@ -120,8 +121,6 @@ class OpsBot(commands.Bot):
 
 
 intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
 
 bot = OpsBot(command_prefix="!", intents=intents)
 

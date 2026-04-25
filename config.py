@@ -57,6 +57,15 @@ BOT_API_KEY = _env("BOT_API_KEY")
 if not BOT_API_KEY:
     raise RuntimeError("BOT_API_KEY must be set in .env")
 BOT_COMPETITION_ID = _env("BOT_COMPETITION_ID")
+SCOREBOARD_API_BASE_URL = os.getenv(
+    "SCOREBOARD_API_BASE_URL",
+    "http://ops-backend:8400/api/v1/scoreboard",
+).rstrip("/")
+SCOREBOARD_COMPETITION_ID = (
+    os.getenv("SCOREBOARD_COMPETITION_ID")
+    or BOT_COMPETITION_ID
+    or ""
+).strip()
 REGISTER_API_URL = os.getenv("REGISTER_API_URL", "http://127.0.0.1:5050/api/v1/auth/discord/start")
 REGISTER_API_KEY = os.getenv("REGISTER_API_KEY") or os.getenv("REGISTER_API_SECRET") or BOT_API_KEY
 FLAG_API_URL = os.getenv("FLAG_API_URL", "http://ops-backend:8400/api/v1/bot/flags/submit")
