@@ -127,9 +127,11 @@ class InternalApiCog(commands.Cog):
         app.router.add_post("/api/v1/run/requests/cguard/ai", self._handle_cguard_ai)
         app.router.add_post("/api/v1/run/requests/cguard/onoff", self._handle_cguard_onoff)
         app.router.add_post("/api/v1/run/requests/team/role", self._handle_team_role_create)
+        app.router.add_post("/api/v1/run/requests/team/role/assign", self._handle_team_role_assign)
         app.router.add_delete("/api/v1/run/requests/team/role/{role_id}", self._handle_team_role_delete)
         app.router.add_post("/api/v1/run/requests/operator/role", self._handle_operator_role_grant)
         app.router.add_delete("/api/v1/run/requests/operator/role/{discord_user_id}", self._handle_operator_role_revoke)
+        app.router.add_get("/api/v1/run/requests/guild/members", self._handle_guild_members)
         app.router.add_get("/health", self._handle_health)
 
         self._runner = web.AppRunner(app)
@@ -713,6 +715,113 @@ class InternalApiCog(commands.Cog):
         LOGGER.info("team role deleted role_id=%s", role_id_raw)
         return web.json_response({"deleted": True}, status=200)
 
+    async def _handle_team_role_assign(self, request: web.Request) -> web.Response:
+        """운영포털 팀원 추가 시 호출 — 대상 멤버에게 팀 역할을 부여한다."""
+        if not self._authorized(request):
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "validation_failed", "fields": ["invalid_json"]}, status=400)
+
+        discord_user_id = str(data.get("discord_user_id", "")).strip()
+        role_id_raw = str(data.get("role_id", "")).strip()
+        if not discord_user_id or not discord_user_id.isdigit():
+            return web.json_response({"error": "validation_failed", "fields": ["discord_user_id"]}, status=400)
+        if not role_id_raw or not role_id_raw.isdigit():
+            return web.json_response({"error": "validation_failed", "fields": ["role_id"]}, status=400)
+
+        guild = self.bot.get_guild(int(config.GUILD_ID)) if str(config.GUILD_ID).isdigit() else None
+        if guild is None:
+            LOGGER.warning("team role assign: guild not found guild_id=%s", config.GUILD_ID)
+            return web.json_response({"error": "guild_not_found"}, status=404)
+
+        member = guild.get_member(int(discord_user_id))
+        if member is None:
+            try:
+                member = await guild.fetch_member(int(discord_user_id))
+            except discord.NotFound:
+                LOGGER.info("team role assign: member not found user_id=%s", discord_user_id)
+                return web.json_response({"error": "member_not_found"}, status=404)
+            except discord.Forbidden:
+                LOGGER.warning("team role assign: forbidden to fetch member user_id=%s", discord_user_id)
+                return web.json_response({"error": "forbidden"}, status=403)
+            except Exception as exc:
+                LOGGER.exception("Failed to fetch member user_id=%s", discord_user_id)
+                return web.json_response({"error": str(exc)}, status=500)
+
+        role = guild.get_role(int(role_id_raw))
+        if role is None:
+            LOGGER.info("team role assign: role not found role_id=%s", role_id_raw)
+            return web.json_response({"error": "role_not_found"}, status=404)
+
+        if role in member.roles:
+            return web.json_response(
+                {
+                    "user_id": discord_user_id,
+                    "role_id": role_id_raw,
+                    "granted": False,
+                    "reason": "already_has_role",
+                },
+                status=200,
+            )
+
+        try:
+            await member.add_roles(role, reason="운영포털 팀원 추가")
+        except discord.Forbidden:
+            LOGGER.warning("team role assign: missing permissions user_id=%s role_id=%s", discord_user_id, role_id_raw)
+            return web.json_response({"error": "forbidden"}, status=403)
+        except Exception as exc:
+            LOGGER.exception("Failed to assign team role user_id=%s role_id=%s", discord_user_id, role_id_raw)
+            return web.json_response({"error": str(exc)}, status=500)
+
+        LOGGER.info("team role assigned user_id=%s role_id=%s", discord_user_id, role_id_raw)
+        return web.json_response(
+            {"user_id": discord_user_id, "role_id": role_id_raw, "granted": True},
+            status=200,
+        )
+
+    async def _handle_guild_members(self, request: web.Request) -> web.Response:
+        """운영포털 동기화용 — 길드 멤버 전체 목록을 반환한다."""
+        if not self._authorized(request):
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
+        guild = self.bot.get_guild(int(config.GUILD_ID)) if str(config.GUILD_ID).isdigit() else None
+        if guild is None:
+            LOGGER.warning("guild members: guild not found guild_id=%s", config.GUILD_ID)
+            return web.json_response({"error": "guild_not_found"}, status=404)
+
+        try:
+            if not guild.chunked:
+                await guild.chunk(cache=True)
+        except Exception:
+            LOGGER.exception("Failed to chunk guild members guild_id=%s", guild.id)
+
+        members = sorted(
+            guild.members,
+            key=lambda member: (member.bot, member.display_name.lower()),
+        )
+        payload = [
+            {
+                "discord_user_id": str(member.id),
+                "username": member.name,
+                "display_name": member.display_name,
+                "global_name": member.global_name,
+                "nick": member.nick,
+                "is_bot": member.bot,
+            }
+            for member in members
+        ]
+        return web.json_response(
+            {
+                "guild_id": str(guild.id),
+                "total": len(payload),
+                "members": payload,
+            },
+            status=200,
+        )
+
     async def _handle_operator_role_grant(self, request: web.Request) -> web.Response:
         """운영포털 운영자 추가 시 호출 — 해당 Discord 사용자에게 '운영자' 역할 부여 (멱등)."""
         if not self._authorized(request):
@@ -840,4 +949,3 @@ class InternalApiCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(InternalApiCog(bot))
-
