@@ -42,6 +42,7 @@ DISCORD_BOT_TABLES = (
     "relay_dispatch_history",
     "cguard_user_status",
     "problem",
+    "problem_team_links",
 )
 
 
