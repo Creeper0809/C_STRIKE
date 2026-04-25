@@ -427,28 +427,6 @@ class TeamCog(commands.GroupCog, group_name="팀", group_description="팀 조회
         except Exception as exc:
             await self._send_error(interaction, exc)
 
-    @app_commands.command(name="역할연결", description="운영 DB 팀과 Discord 역할을 연결합니다.")
-    @app_commands.default_permissions(manage_guild=True)
-    async def link_role(self, interaction: discord.Interaction, team_code: str, role: discord.Role) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            _require_operator(interaction.user)
-            teams = db_team.list_teams(competition_id=_competition_id(), limit=500)
-            target = next((row for row in teams if str(row.get("team_code", "")).lower() == team_code.strip().lower()), None)
-            if not target:
-                raise TeamError(f"`{team_code}` 팀 코드를 찾을 수 없습니다.")
-            db_team.upsert_team_discord_role(
-                team_id=str(target["id"]),
-                guild_id=str(interaction.guild_id),
-                discord_role_id=str(role.id),
-                discord_role_name=role.name,
-                created_by_id=str(interaction.user.id),
-                created_by_name=str(interaction.user),
-            )
-            await interaction.followup.send(f"`{target.get('name')}` 팀을 {role.mention} 역할에 연결했습니다.", ephemeral=True)
-        except Exception as exc:
-            await self._send_error(interaction, exc)
-
     @app_commands.command(name="공지", description="팀 공지를 즉시 발송하거나 예약합니다.")
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.rename(time="시간", title="제목", description="설명", team="팀1", team2="팀2", team3="팀3", team4="팀4", team5="팀5")

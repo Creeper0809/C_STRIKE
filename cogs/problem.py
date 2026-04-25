@@ -151,7 +151,7 @@ def _problem_detail_embed(problem: dict[str, Any], team_links: list[dict[str, An
     embed.add_field(name="🔹 제출 형식", value="`flag{...}`", inline=False)
 
     if not team_links:
-        embed.add_field(name="✨ 팀별 링크", value="등록된 팀 역할이 없습니다.", inline=False)
+        embed.add_field(name="🌐 팀별 링크", value="등록된 팀 역할이 없습니다.", inline=False)
         return embed
 
     lines = []
@@ -164,7 +164,7 @@ def _problem_detail_embed(problem: dict[str, Any], team_links: list[dict[str, An
         )
     for idx, chunk in enumerate(_chunk_lines(lines), start=1):
         suffix = f" {idx}" if idx > 1 else ""
-        embed.add_field(name=f"✨ 팀별 링크{suffix}", value=chunk, inline=False)
+        embed.add_field(name=f"🌐 팀별 링크{suffix}", value=chunk, inline=False)
     return embed
 
 

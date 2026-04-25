@@ -46,7 +46,6 @@ from .team import (
     mark_schedule_sent,
     soft_delete_schedule,
     update_team_notification_event,
-    upsert_team_discord_role,
 )
 from .ticket import (
     allocate_ticket_identity,

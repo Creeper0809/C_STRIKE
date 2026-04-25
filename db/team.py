@@ -228,35 +228,7 @@ def get_team_role_mapping(guild_id: str, team_id: str) -> dict[str, Any] | None:
 
 
 # ============================================================
-# B) cstrike.teams 쓰기 금지 — 운영포털 REST API 경유 필수
-# ============================================================
-
-def upsert_team_discord_role(
-    *,
-    team_id: str,
-    guild_id: str,
-    discord_role_id: str,
-    discord_role_name: str | None,
-    created_by_id: str | None,
-    created_by_name: str | None,
-) -> dict[str, Any]:
-    """운영포털 SOURCE OF TRUTH 원칙: cstrike.teams.discord_role_id 쓰기는 운영포털 REST API 경유.
-
-    외주 cogs(`cogs/team.py`)가 봇 단에서 Discord role을 생성한 뒤 DB에 기록할 때
-    이 함수를 호출하지만, 운영포털 통합 환경에서는 cstrike.teams를 봇이 직접 수정하면
-    운영포털 상태와 어긋나므로 금지.
-
-    대안: 봇 → 운영포털 REST 호출로 `PATCH /api/v1/teams/{team_id}` 등을 사용하거나
-          관리자 화면에서 discord_role_id를 등록.
-    """
-    raise NotImplementedError(
-        "teams.discord_role_id 쓰기는 운영포털 REST API를 사용하세요. "
-        "본 모듈은 cstrike.teams / cstrike.team_members에 대해 SELECT only."
-    )
-
-
-# ============================================================
-# C) 외주 신규 테이블 (INSERT/UPDATE 허용, PostgreSQL 문법)
+# B) 외주 신규 테이블 (INSERT/UPDATE 허용, PostgreSQL 문법)
 #    team_announcements / team_hints / team_countdown_schedules /
 #    team_notification_events
 # ============================================================
@@ -668,7 +640,6 @@ __all__ = [
     "list_teams",
     "get_user_team",
     "get_team_detail",
-    "upsert_team_discord_role",
     "create_team_announcement",
     "create_team_hint",
     "create_team_countdown_schedule",
