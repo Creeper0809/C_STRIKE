@@ -87,7 +87,7 @@ class TicketCloseView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Close",
+        label="티켓 닫기",
         style=discord.ButtonStyle.danger,
         custom_id="close_ticket_btn",
     )

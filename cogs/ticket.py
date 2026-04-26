@@ -89,6 +89,39 @@ class TicketCog(commands.GroupCog, group_name="티켓", group_description="티�
             ephemeral=True,
         )
 
+    @app_commands.command(name="닫기", description="현재 티켓 스레드를 닫습니다.")
+    async def close_ticket_thread(self, interaction: discord.Interaction) -> None:
+        thread = interaction.channel
+        if not isinstance(thread, discord.Thread):
+            await interaction.response.send_message("티켓 스레드 안에서만 사용할 수 있습니다.", ephemeral=True)
+            return
+
+        ticket = db.get_latest_ticket_by_thread_id(str(thread.id))
+        if not ticket or str(ticket.get("status") or "").lower() in {"closed", "deleted", "error"}:
+            await interaction.response.send_message("열려 있는 티켓 스레드가 아닙니다.", ephemeral=True)
+            return
+
+        try:
+            await ticket_service.close_ticket(interaction, thread, None)
+        except Exception as exc:
+            if getattr(exc, "code", None) in {10062, 40060}:
+                LOGGER.warning("Ignoring transient slash close interaction error: %s", exc)
+                return
+            LOGGER.exception("Ticket slash close failed thread_id=%s", thread.id)
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        "티켓을 닫는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "티켓을 닫는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                        ephemeral=True,
+                    )
+            except Exception:
+                pass
+
     @commands.Cog.listener()
     async def on_ready(self):
         if not self._persistent_view_registered:

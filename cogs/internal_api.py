@@ -128,6 +128,7 @@ class InternalApiCog(commands.Cog):
         app.router.add_post("/api/v1/run/requests/cguard/onoff", self._handle_cguard_onoff)
         app.router.add_post("/api/v1/run/requests/team/role", self._handle_team_role_create)
         app.router.add_post("/api/v1/run/requests/team/role/assign", self._handle_team_role_assign)
+        app.router.add_delete("/api/v1/run/requests/team/role/assign/{discord_user_id}/{role_id}", self._handle_team_role_revoke)
         app.router.add_delete("/api/v1/run/requests/team/role/{role_id}", self._handle_team_role_delete)
         app.router.add_post("/api/v1/run/requests/operator/role", self._handle_operator_role_grant)
         app.router.add_delete("/api/v1/run/requests/operator/role/{discord_user_id}", self._handle_operator_role_revoke)
@@ -779,6 +780,54 @@ class InternalApiCog(commands.Cog):
         LOGGER.info("team role assigned user_id=%s role_id=%s", discord_user_id, role_id_raw)
         return web.json_response(
             {"user_id": discord_user_id, "role_id": role_id_raw, "granted": True},
+            status=200,
+        )
+
+    async def _handle_team_role_revoke(self, request: web.Request) -> web.Response:
+        """운영포털 팀원 퇴장 시 호출 — 대상 멤버에게서 팀 역할을 회수한다."""
+        if not self._authorized(request):
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
+        discord_user_id = str(request.match_info.get("discord_user_id", "")).strip()
+        role_id_raw = str(request.match_info.get("role_id", "")).strip()
+        if not discord_user_id or not discord_user_id.isdigit():
+            return web.json_response({"error": "validation_failed", "fields": ["discord_user_id"]}, status=400)
+        if not role_id_raw or not role_id_raw.isdigit():
+            return web.json_response({"error": "validation_failed", "fields": ["role_id"]}, status=400)
+
+        guild = self.bot.get_guild(int(config.GUILD_ID)) if str(config.GUILD_ID).isdigit() else None
+        if guild is None:
+            LOGGER.warning("team role revoke: guild not found guild_id=%s", config.GUILD_ID)
+            return web.json_response({"error": "guild_not_found"}, status=404)
+
+        member = guild.get_member(int(discord_user_id))
+        if member is None:
+            try:
+                member = await guild.fetch_member(int(discord_user_id))
+            except discord.NotFound:
+                LOGGER.info("team role revoke: member not found user_id=%s", discord_user_id)
+                return web.json_response({"revoked": False, "reason": "member_not_found"}, status=200)
+            except Exception as exc:
+                LOGGER.exception("Failed to fetch member user_id=%s", discord_user_id)
+                return web.json_response({"error": str(exc)}, status=500)
+
+        role = guild.get_role(int(role_id_raw))
+        if role is None or role not in member.roles:
+            LOGGER.info("team role revoke: no role to remove user_id=%s role_id=%s", discord_user_id, role_id_raw)
+            return web.json_response({"revoked": False, "reason": "no_role"}, status=200)
+
+        try:
+            await member.remove_roles(role, reason="운영포털 팀원 퇴장")
+        except discord.Forbidden:
+            LOGGER.warning("team role revoke: missing permissions user_id=%s role_id=%s", discord_user_id, role_id_raw)
+            return web.json_response({"error": "forbidden"}, status=403)
+        except Exception as exc:
+            LOGGER.exception("Failed to revoke team role user_id=%s role_id=%s", discord_user_id, role_id_raw)
+            return web.json_response({"error": str(exc)}, status=500)
+
+        LOGGER.info("team role revoked user_id=%s role_id=%s", discord_user_id, role_id_raw)
+        return web.json_response(
+            {"revoked": True, "user_id": discord_user_id, "role_id": role_id_raw},
             status=200,
         )
 

@@ -57,6 +57,10 @@ BOT_API_KEY = _env("BOT_API_KEY")
 if not BOT_API_KEY:
     raise RuntimeError("BOT_API_KEY must be set in .env")
 BOT_COMPETITION_ID = _env("BOT_COMPETITION_ID")
+TICKET_WEBHOOK_URL = os.getenv(
+    "TICKET_WEBHOOK_URL",
+    "http://ops-backend:8400/api/tickets/webhook/discord",
+).rstrip("/")
 SCOREBOARD_API_BASE_URL = os.getenv(
     "SCOREBOARD_API_BASE_URL",
     "http://ops-backend:8400/api/v1/scoreboard",

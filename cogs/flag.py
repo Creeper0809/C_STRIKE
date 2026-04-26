@@ -72,6 +72,31 @@ async def submit_flag(discord_user_id: str, problem_no: str, submitted_flag: str
             return data
 
 
+def _normalize_verdict(result: dict) -> str:
+    return str(result.get("verdict") or result.get("status") or "").strip().lower()
+
+
+def _flag_result_message(problem_no: str, result: dict) -> str:
+    message = str(result.get("message", "")).strip() or "처리 결과를 확인해주세요."
+    verdict = _normalize_verdict(result)
+    details = result.get("details") if isinstance(result.get("details"), dict) else {}
+    lines = [message]
+
+    if verdict == "correct":
+        target_team = str(details.get("target_team") or "").strip()
+        service = str(details.get("service") or "").strip()
+        points = details.get("points_earned")
+        lines.append(f"문제 번호: `{problem_no}`")
+        if target_team:
+            lines.append(f"대상 팀: `{target_team}`")
+        if service:
+            lines.append(f"서비스: `{service}`")
+        if points is not None:
+            lines.append(f"획득 점수: `{points}`")
+
+    return "\n".join(line for line in lines if line)
+
+
 class FlagCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -92,32 +117,28 @@ class FlagCog(commands.Cog):
             await interaction.followup.send(_user_friendly_flag_error(exc), ephemeral=True)
             return
 
-        status = str(result.get("status", "")).strip()
-        message = str(result.get("message", "")).strip() or "처리 결과를 확인해주세요."
-        score = result.get("score")
-        awarded = result.get("awarded_score")
+        verdict = _normalize_verdict(result)
+        response_message = _flag_result_message(problem_no, result)
 
-        if status == "correct":
+        if verdict == "correct":
             audit.log(
                 None,
                 interaction.user,
                 "FLAG_SUBMIT_CORRECT",
-                f"problem_no={problem_no}; awarded_score={awarded}; total_score={score}",
+                f"problem_no={problem_no}; verdict={verdict}",
             )
-            await interaction.followup.send(
-                f"{message}\n문제 번호: `{problem_no}`\n획득 점수: `{awarded}`\n현재 점수: `{score}`",
-                ephemeral=True,
-            )
+            await interaction.followup.send(response_message, ephemeral=True)
             return
 
         action_name = {
-            "already_solved": "FLAG_SUBMIT_ALREADY_SOLVED",
+            "duplicate": "FLAG_SUBMIT_ALREADY_SOLVED",
             "invalid_format": "FLAG_SUBMIT_INVALID_FORMAT",
-            "wrong_answer": "FLAG_SUBMIT_WRONG",
-            "problem_not_found": "FLAG_SUBMIT_UNKNOWN_PROBLEM",
-        }.get(status, "FLAG_SUBMIT_FAILED")
-        audit.log(None, interaction.user, action_name, f"problem_no={problem_no}; status={status}")
-        await interaction.followup.send(message, ephemeral=True)
+            "incorrect": "FLAG_SUBMIT_WRONG",
+            "own_flag": "FLAG_SUBMIT_OWN_FLAG",
+            "expired": "FLAG_SUBMIT_EXPIRED",
+        }.get(verdict, "FLAG_SUBMIT_FAILED")
+        audit.log(None, interaction.user, action_name, f"problem_no={problem_no}; verdict={verdict}")
+        await interaction.followup.send(response_message, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -150,6 +150,8 @@ def store_ticket(
     user_id: str,
     category: str,
     user_name: str | None = None,
+    team_id: str | None = None,
+    team_name: str | None = None,
 ) -> str:
     now = _now_kst_naive()
     safe_ticket_id = str(ticket_id or "").strip()
@@ -160,6 +162,8 @@ def store_ticket(
         raise ValueError("ticket_number is required")
     safe_category = str(category or "").strip() or "pending"
     display_name = str(user_name or "").strip()
+    safe_team_id = str(team_id or "").strip() or None
+    safe_team_name = str(team_name or "").strip() or None
     title = f"[{safe_category}] {display_name}" if display_name else f"[{safe_category}] ticket"
     con = _connect()
     try:
@@ -188,14 +192,14 @@ def store_ticket(
                     safe_category,
                     title,
                     "",
-                    None,
-                    None,
+                    safe_team_id,
+                    safe_team_name,
                     "discord",
                     str(user_id or "").strip() or None,
                     None,
                     str(discord_thread_id or "").strip() or None,
                     "open",
-                    None,
+                    "medium",
                     None,
                     None,
                     None,
@@ -231,11 +235,20 @@ def update_ticket_category(ticket_id: str, category: str):
         con.close()
 
 
-def update_ticket_submission(ticket_id: str, category: str, description: str, title: str | None = None) -> None:
+def update_ticket_submission(
+    ticket_id: str,
+    category: str,
+    description: str,
+    title: str | None = None,
+    team_id: str | None = None,
+    team_name: str | None = None,
+) -> None:
     now = _now_kst_naive()
     safe_category = str(category or "").strip() or "pending"
     safe_description = str(description or "").strip()
     safe_title = str(title or "").strip() or f"[{safe_category}] ticket"
+    safe_team_id = str(team_id or "").strip() or None
+    safe_team_name = str(team_name or "").strip() or None
     con = _connect()
     try:
         with con.cursor() as cur:
@@ -245,10 +258,20 @@ def update_ticket_submission(ticket_id: str, category: str, description: str, ti
                 SET type=%s,
                     title=%s,
                     description=%s,
+                    team_id=%s,
+                    team_name=%s,
                     updated_at=%s
                 WHERE id=%s
                 """,
-                (safe_category, safe_title, safe_description, now, str(ticket_id)),
+                (
+                    safe_category,
+                    safe_title,
+                    safe_description,
+                    safe_team_id,
+                    safe_team_name,
+                    now,
+                    str(ticket_id),
+                ),
             )
         con.commit()
     finally:

@@ -178,7 +178,22 @@ class ProblemCog(commands.Cog):
     @app_commands.command(name="문제목록", description="현재 공개된 공통 문제 목록을 조회합니다.")
     async def problem_list(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
-        problems = await asyncio.to_thread(db_problem.list_visible_problems, team_id=None, limit=500)
+        visibility = await asyncio.to_thread(
+            db_problem.get_problem_visibility_state,
+            competition_id=_competition_id(),
+        )
+        if not visibility.get("visible", True):
+            await interaction.followup.send(
+                str(visibility.get("reason") or "현재는 문제를 공개하지 않습니다."),
+                ephemeral=True,
+            )
+            return
+        problems = await asyncio.to_thread(
+            db_problem.list_visible_problems,
+            team_id=None,
+            competition_id=_competition_id(),
+            limit=500,
+        )
         LOGGER.info("Problem list returned count=%s", len(problems))
         await interaction.followup.send(embed=_problem_list_embed(problems), ephemeral=True)
 
@@ -186,6 +201,16 @@ class ProblemCog(commands.Cog):
     @app_commands.describe(problem_no="예: WEB-101")
     async def problem_detail(self, interaction: discord.Interaction, problem_no: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
+        visibility = await asyncio.to_thread(
+            db_problem.get_problem_visibility_state,
+            competition_id=_competition_id(),
+        )
+        if not visibility.get("visible", True):
+            await interaction.followup.send(
+                str(visibility.get("reason") or "현재는 문제를 공개하지 않습니다."),
+                ephemeral=True,
+            )
+            return
         guild_id = str(interaction.guild_id or "")
         role_ids = _member_role_ids(interaction)
         team = await asyncio.to_thread(_team_from_role_ids, guild_id, role_ids)
@@ -194,12 +219,21 @@ class ProblemCog(commands.Cog):
             await interaction.followup.send("현재 소속 팀을 찾을 수 없습니다.", ephemeral=True)
             return
 
-        problem = await asyncio.to_thread(db_problem.get_visible_problem_by_no, problem_no=problem_no, team_id=team_id)
+        problem = await asyncio.to_thread(
+            db_problem.get_visible_problem_by_no,
+            problem_no=problem_no,
+            team_id=team_id,
+            competition_id=_competition_id(),
+        )
         if problem is None:
             await interaction.followup.send("해당 문제를 찾을 수 없거나 아직 공개되지 않았습니다.", ephemeral=True)
             return
 
-        team_links = await asyncio.to_thread(db_problem.list_problem_team_links, _problem_no(problem))
+        team_links = await asyncio.to_thread(
+            db_problem.list_problem_team_links,
+            _problem_no(problem),
+            _competition_id(),
+        )
         embed = _problem_detail_embed(problem, team_links)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
